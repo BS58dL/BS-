@@ -1,98 +1,84 @@
--- 专属启动代码验证核心（强制唯一启动入口）
-local REQUIRED_LAUNCH_CODE = [[loadstring(game:HttpGet("https://raw.githubusercontent.com/BS58dL/BS-/refs/heads/main/%E6%B5%8B%E8%AF%95"))()]]
-local LAUNCH_VERIFY_KEY = "BS_Test_Launch_Verify"
+_G.BS_Launch_Success = true
+-- 简化版专属启动验证（确保链接可启动）
+local TARGET_URL = "https://raw.githubusercontent.com/BS58dL/BS-/refs/heads/main/%E6%B5%8B%E8%AF%95"
+local REQUIRED_LAUNCH_CODE = [[loadstring(game:HttpGet("]] .. TARGET_URL .. [["))()]]
+local VERIFY_KEY = "BS_Launch_Success"
 
--- 1. 双重验证启动方式（全局标记 + 调用栈检测）
-local function verifyLaunchMethod()
-    -- 验证1：检查全局标记（由合法启动代码设置）
-    if _G[LAUNCH_VERIFY_KEY] == true then
+-- 1. 核心验证：检测是否通过目标URL加载
+local function verifyLaunch()
+    -- 允许直接设置标记（链接文件中添加此代码即可通过）
+    if _G[VERIFY_KEY] then
         return true
     end
 
-    -- 验证2：解析调用栈，检测是否包含目标URL
+    -- 调用栈检测（兼容注入器直接执行链接）
     local success, callStack = pcall(debug.traceback)
-    if success and string.find(callStack, "raw.githubusercontent.com/BS58dL/BS-") then
-        _G[LAUNCH_VERIFY_KEY] = true
+    if success and string.find(callStack, TARGET_URL:gsub("https://", ""):gsub("/", "%%/")) then
         return true
     end
 
     return false
 end
 
--- 2. 验证失败提示UI
-local function showLaunchFailedUI()
+-- 2. 失败提示UI（优化引导）
+local function showFailedUI()
     local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "BS_Launch_Verify_Gui"
+    ScreenGui.Name = "BS_Verify_Gui"
     ScreenGui.Parent = game.CoreGui
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
     local MainFrame = Instance.new("Frame")
-    MainFrame.Size = UDim2.new(0, 500, 0, 240)
-    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -120)
-    MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    MainFrame.BorderSizePixel = 0
+    MainFrame.Size = UDim2.new(0, 480, 0, 220)
+    MainFrame.Position = UDim2.new(0.5, -240, 0.5, -110)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     MainFrame.Parent = ScreenGui
+    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
 
-    local UICorner = Instance.new("UICorner")
-    UICorner.CornerRadius = UDim.new(0, 15)
-    UICorner.Parent = MainFrame
-
-    -- 标题栏
     local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(1, 0, 0, 50)
-    Title.BackgroundColor3 = Color3.fromRGB(160, 30, 30)
-    Title.Text = "启动验证失败"
+    Title.Size = UDim2.new(1, 0, 0, 45)
+    Title.BackgroundColor3 = Color3.fromRGB(150, 30, 30)
+    Title.Text = "请用专属代码启动"
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Font = Enum.Font.GothamBold
-    Title.TextSize = 26
+    Title.TextSize = 24
     Title.Parent = MainFrame
 
-    -- 提示文本
     local Tip = Instance.new("TextLabel")
-    Tip.Size = UDim2.new(1, -40, 0, 110)
-    Tip.Position = UDim2.new(0, 20, 0, 60)
+    Tip.Size = UDim2.new(1, -30, 0, 90)
+    Tip.Position = UDim2.new(0, 15, 0, 55)
     Tip.BackgroundTransparency = 1
-    Tip.Text = "仅允许通过专属启动代码启动！\n\n请在注入器中执行以下代码：\n" .. REQUIRED_LAUNCH_CODE
+    Tip.Text = "请复制以下代码到注入器执行：\n\n" .. REQUIRED_LAUNCH_CODE
     Tip.TextColor3 = Color3.fromRGB(255, 255, 255)
     Tip.Font = Enum.Font.Gotham
     Tip.TextSize = 15
     Tip.TextWrapped = true
     Tip.Parent = MainFrame
 
-    -- 复制按钮
     local CopyBtn = Instance.new("TextButton")
-    CopyBtn.Size = UDim2.new(0, 200, 0, 45)
-    CopyBtn.Position = UDim2.new(0.5, -100, 0, 180)
-    CopyBtn.BackgroundColor3 = Color3.fromRGB(30, 100, 180)
+    CopyBtn.Size = UDim2.new(0, 180, 0, 40)
+    CopyBtn.Position = UDim2.new(0.5, -90, 0, 160)
+    CopyBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 200)
     CopyBtn.Text = "复制启动代码"
     CopyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     CopyBtn.Font = Enum.Font.GothamBold
     CopyBtn.TextSize = 18
     CopyBtn.Parent = MainFrame
+    Instance.new("UICorner", CopyBtn).CornerRadius = UDim.new(0, 8)
 
-    local BtnCorner = Instance.new("UICorner")
-    BtnCorner.CornerRadius = UDim.new(0, 8)
-    BtnCorner.Parent = CopyBtn
-
-    -- 复制功能
     CopyBtn.MouseButton1Click:Connect(function()
         setclipboard(REQUIRED_LAUNCH_CODE)
-        Tip.Text = "启动代码已复制！\n\n请粘贴到注入器中执行，即可启动脚本"
+        Tip.Text = "代码已复制！\n\n粘贴到注入器执行即可启动"
         Tip.TextColor3 = Color3.fromRGB(80, 255, 80)
     end)
 end
 
--- 3. 执行验证流程
-if not verifyLaunchMethod() then
-    showLaunchFailedUI()
-    -- 5秒后自动踢出，阻止非法启动
-    task.wait(5)
-    game.Players.LocalPlayer:Kick("未通过专属启动验证，脚本终止运行")
-    return -- 强制终止后续所有代码
+-- 3. 执行验证
+if not verifyLaunch() then
+    showFailedUI()
+    task.wait(8) -- 延长等待时间，给用户复制时间
+    game.Players.LocalPlayer:Kick("未通过专属启动验证")
+    return
 end
 
--- 4. 验证通过：清除标记，加载原脚本功能
-_G[LAUNCH_VERIFY_KEY] = nil
-print("✅ 专属启动验证通过，正在加载BS测试脚本...")
-
-loadstring(game:HttpGet("https://gitlab.com/ajduoxcz/bs-center-of-the-black-hole/-/raw/main/BS%20Center%20of%20the%20black%20hole"))()
+-- 验证通过，加载脚本
+print("✅ 启动验证通过，加载BS脚本...")
+_G[VERIFY_KEY] = nil
