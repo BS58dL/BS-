@@ -1,0 +1,487 @@
+local AuthorCommandGUI = {
+    Players = game:GetService("Players"),
+    TweenService = game:GetService("TweenService"),
+    UserInputService = game:GetService("UserInputService")
+}
+
+AuthorCommandGUI.LocalPlayer = AuthorCommandGUI.Players.LocalPlayer
+
+AuthorCommandGUI.CommandAnimations = {
+    {
+        name = "冻结/解冻指令",
+        description = "控制玩家冻结状态",
+        animationIds = {
+            "http://www.roblox.com/asset/?id=10714177846",
+            "rbxassetid://72042024"
+        },
+        icon = "❄️"
+    },
+    {
+        name = "传送指令", 
+        description = "将玩家传送到身边",
+        animationIds = {
+            "http://www.roblox.com/asset/?id=10714359093",
+            "rbxassetid://204062532"
+        },
+        icon = "🔮"
+    }
+}
+
+AuthorCommandGUI.CurrentAnimations = {}
+AuthorCommandGUI.IsMinimized = false
+
+function AuthorCommandGUI:ShowNotification(title, content, duration)
+    duration = duration or 3
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = title,
+            Text = content,
+            Duration = duration
+        })
+    end)
+end
+
+function AuthorCommandGUI:CreateGUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AuthorCommandGUI"
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = self.LocalPlayer:WaitForChild("PlayerGui")
+
+    local quickIcon = Instance.new("TextButton")
+    quickIcon.Name = "QuickIcon"
+    quickIcon.Size = UDim2.new(0, 60, 0, 60)
+    quickIcon.Position = UDim2.new(0, 20, 0.5, -30)
+    quickIcon.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    quickIcon.Text = "🎮"
+    quickIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+    quickIcon.TextSize = 24
+    quickIcon.Font = Enum.Font.GothamBold
+    quickIcon.Parent = screenGui
+
+    local iconCorner = Instance.new("UICorner")
+    iconCorner.CornerRadius = UDim.new(0, 12)
+    iconCorner.Parent = quickIcon
+
+    local iconStroke = Instance.new("UIStroke")
+    iconStroke.Color = Color3.fromRGB(80, 80, 120)
+    iconStroke.Thickness = 2
+    iconStroke.Parent = quickIcon
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 350, 0, 400)
+    mainFrame.Position = UDim2.new(0, 90, 0.5, -200)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = mainFrame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(80, 80, 120)
+    stroke.Thickness = 2
+    stroke.Parent = mainFrame
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 50)
+    titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 12)
+    titleCorner.Parent = titleBar
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -100, 1, 0)
+    titleLabel.Position = UDim2.new(0, 15, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "🎮 作者指令控制器"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 18
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+
+    local minimizeButton = Instance.new("TextButton")
+    minimizeButton.Name = "MinimizeButton"
+    minimizeButton.Size = UDim2.new(0, 40, 0, 40)
+    minimizeButton.Position = UDim2.new(1, -90, 0.5, -20)
+    minimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+    minimizeButton.Text = "−"
+    minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minimizeButton.TextSize = 24
+    minimizeButton.Font = Enum.Font.GothamBold
+    minimizeButton.Parent = titleBar
+
+    local minimizeCorner = Instance.new("UICorner")
+    minimizeCorner.CornerRadius = UDim.new(0, 8)
+    minimizeCorner.Parent = minimizeButton
+
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 40, 0, 40)
+    closeButton.Position = UDim2.new(1, -45, 0.5, -20)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    closeButton.Text = "×"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 24
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = titleBar
+
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 8)
+    closeCorner.Parent = closeButton
+
+    local contentFrame = Instance.new("ScrollingFrame")
+    contentFrame.Name = "Content"
+    contentFrame.Size = UDim2.new(1, -20, 1, -70)
+    contentFrame.Position = UDim2.new(0, 10, 0, 60)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.BorderSizePixel = 0
+    contentFrame.ScrollBarThickness = 8
+    contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    contentFrame.Parent = mainFrame
+
+    local buttonHeight = 90
+    local padding = 10
+    
+    for i, command in ipairs(self.CommandAnimations) do
+        local yPosition = (i - 1) * (buttonHeight + padding)
+        
+        local buttonFrame = Instance.new("Frame")
+        buttonFrame.Name = command.name
+        buttonFrame.Size = UDim2.new(1, 0, 0, buttonHeight)
+        buttonFrame.Position = UDim2.new(0, 0, 0, yPosition)
+        buttonFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        buttonFrame.BorderSizePixel = 0
+        buttonFrame.Parent = contentFrame
+
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 10)
+        buttonCorner.Parent = buttonFrame
+
+        local buttonStroke = Instance.new("UIStroke")
+        buttonStroke.Color = Color3.fromRGB(100, 100, 150)
+        buttonStroke.Thickness = 1
+        buttonStroke.Parent = buttonFrame
+
+        local iconLabel = Instance.new("TextLabel")
+        iconLabel.Name = "Icon"
+        iconLabel.Size = UDim2.new(0, 60, 1, 0)
+        iconLabel.BackgroundTransparency = 1
+        iconLabel.Text = command.icon
+        iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        iconLabel.TextSize = 28
+        iconLabel.Font = Enum.Font.GothamBold
+        iconLabel.Parent = buttonFrame
+
+        local textFrame = Instance.new("Frame")
+        textFrame.Name = "TextFrame"
+        textFrame.Size = UDim2.new(0.5, 0, 1, 0)
+        textFrame.Position = UDim2.new(0, 70, 0, 0)
+        textFrame.BackgroundTransparency = 1
+        textFrame.Parent = buttonFrame
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Name = "Name"
+        nameLabel.Size = UDim2.new(1, 0, 0.6, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = command.name
+        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nameLabel.TextSize = 16
+        nameLabel.Font = Enum.Font.GothamSemibold
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.Parent = textFrame
+
+        local descLabel = Instance.new("TextLabel")
+        descLabel.Name = "Description"
+        descLabel.Size = UDim2.new(1, 0, 0.4, 0)
+        descLabel.Position = UDim2.new(0, 0, 0.6, 0)
+        descLabel.BackgroundTransparency = 1
+        descLabel.Text = command.description
+        descLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        descLabel.TextSize = 12
+        descLabel.Font = Enum.Font.Gotham
+        descLabel.TextXAlignment = Enum.TextXAlignment.Left
+        descLabel.Parent = textFrame
+
+        local playButton = Instance.new("TextButton")
+        playButton.Name = "PlayButton"
+        playButton.Size = UDim2.new(0, 70, 0, 40)
+        playButton.Position = UDim2.new(1, -80, 0.5, -20)
+        playButton.BackgroundColor3 = Color3.fromRGB(70, 150, 70)
+        playButton.Text = "播放"
+        playButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        playButton.TextSize = 16
+        playButton.Font = Enum.Font.GothamSemibold
+        playButton.Parent = buttonFrame
+
+        local playCorner = Instance.new("UICorner")
+        playCorner.CornerRadius = UDim.new(0, 8)
+        playCorner.Parent = playButton
+
+        local stopButton = Instance.new("TextButton")
+        stopButton.Name = "StopButton"
+        stopButton.Size = UDim2.new(0, 70, 0, 40)
+        stopButton.Position = UDim2.new(1, -160, 0.5, -20)
+        stopButton.BackgroundColor3 = Color3.fromRGB(150, 70, 70)
+        stopButton.Text = "停止"
+        stopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        stopButton.TextSize = 16
+        stopButton.Font = Enum.Font.GothamSemibold
+        stopButton.Visible = false
+        stopButton.Parent = buttonFrame
+
+        local stopCorner = Instance.new("UICorner")
+        stopCorner.CornerRadius = UDim.new(0, 8)
+        stopCorner.Parent = stopButton
+
+        contentFrame.CanvasSize = UDim2.new(0, 0, 0, yPosition + buttonHeight + padding)
+
+        playButton.MouseButton1Click:Connect(function()
+            self:PlayAnimation(command, buttonFrame)
+        end)
+
+        playButton.TouchTap:Connect(function()
+            self:PlayAnimation(command, buttonFrame)
+        end)
+
+        stopButton.MouseButton1Click:Connect(function()
+            self:StopAnimation(command)
+        end)
+
+        stopButton.TouchTap:Connect(function()
+            self:StopAnimation(command)
+        end)
+    end
+
+    quickIcon.MouseButton1Click:Connect(function()
+        if self.IsMinimized then
+            self:MaximizeGUI()
+        else
+            self:MinimizeGUI()
+        end
+    end)
+
+    quickIcon.TouchTap:Connect(function()
+        if self.IsMinimized then
+            self:MaximizeGUI()
+        else
+            self:MinimizeGUI()
+        end
+    end)
+
+    minimizeButton.MouseButton1Click:Connect(function()
+        if self.IsMinimized then
+            self:MaximizeGUI()
+        else
+            self:MinimizeGUI()
+        end
+    end)
+
+    minimizeButton.TouchTap:Connect(function()
+        if self.IsMinimized then
+            self:MaximizeGUI()
+        else
+            self:MinimizeGUI()
+        end
+    end)
+
+    closeButton.MouseButton1Click:Connect(function()
+        self:MinimizeGUI()
+    end)
+
+    closeButton.TouchTap:Connect(function()
+        self:MinimizeGUI()
+    end)
+
+    local function setupDrag(gui, dragElement)
+        local dragging = false
+        local dragStart, startPos
+
+        local function update(input)
+            if not dragging then return end
+            local delta
+            if input.UserInputType == Enum.UserInputType.Touch then
+                delta = input.Position - dragStart
+            else
+                delta = input.Position - dragStart
+            end
+            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+
+        dragElement.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = gui.Position
+                
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    dragElement.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+                end
+            end
+        end)
+
+        dragElement.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    dragElement.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+                end
+            end
+        end)
+
+        self.UserInputService.InputChanged:Connect(function(input)
+            if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+                update(input)
+            end
+        end)
+    end
+
+    setupDrag(mainFrame, titleBar)
+    setupDrag(quickIcon, quickIcon)
+
+    return screenGui
+end
+
+function AuthorCommandGUI:PlayAnimation(command, buttonFrame)
+    local character = self.LocalPlayer.Character
+    if not character then
+        self:ShowNotification("错误", "角色不存在", 3)
+        return
+    end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then
+        self:ShowNotification("错误", "无法找到Humanoid", 3)
+        return
+    end
+
+    local animator = humanoid:FindFirstChildOfClass("Animator")
+    if not animator then
+        self:ShowNotification("错误", "无法找到Animator", 3)
+        return
+    end
+
+    if self.CurrentAnimations[command.name] then
+        self.CurrentAnimations[command.name]:Stop()
+        self.CurrentAnimations[command.name] = nil
+    end
+
+    local animationId = command.animationIds[1]
+    
+    local animation = Instance.new("Animation")
+    animation.AnimationId = animationId
+
+    local animationTrack = animator:LoadAnimation(animation)
+    animationTrack:Play()
+    
+    self.CurrentAnimations[command.name] = animationTrack
+
+    local playButton = buttonFrame:FindFirstChild("PlayButton")
+    local stopButton = buttonFrame:FindFirstChild("StopButton")
+    
+    if playButton and stopButton then
+        playButton.Visible = false
+        stopButton.Visible = true
+    end
+
+    self:ShowNotification("播放动画", "正在播放: " .. command.name, 2)
+
+    animationTrack.Stopped:Connect(function()
+        if playButton and stopButton then
+            playButton.Visible = true
+            stopButton.Visible = false
+        end
+        self.CurrentAnimations[command.name] = nil
+    end)
+end
+
+function AuthorCommandGUI:StopAnimation(command)
+    if self.CurrentAnimations[command.name] then
+        self.CurrentAnimations[command.name]:Stop()
+        self.CurrentAnimations[command.name] = nil
+        self:ShowNotification("停止动画", "已停止: " .. command.name, 2)
+    end
+end
+
+function AuthorCommandGUI:MinimizeGUI()
+    if self.MainGUI then
+        local mainFrame = self.MainGUI:FindFirstChild("MainFrame")
+        local quickIcon = self.MainGUI:FindFirstChild("QuickIcon")
+        
+        if mainFrame and quickIcon then
+            mainFrame.Visible = false
+            quickIcon.Visible = true
+            self.IsMinimized = true
+        end
+    end
+end
+
+function AuthorCommandGUI:MaximizeGUI()
+    if self.MainGUI then
+        local mainFrame = self.MainGUI:FindFirstChild("MainFrame")
+        local quickIcon = self.MainGUI:FindFirstChild("QuickIcon")
+        
+        if mainFrame and quickIcon then
+            mainFrame.Visible = true
+            quickIcon.Visible = true
+            self.IsMinimized = false
+        end
+    end
+end
+
+function AuthorCommandGUI:ToggleGUI()
+    if not self.MainGUI then
+        self.MainGUI = self:CreateGUI()
+        self:MaximizeGUI()
+    else
+        if self.IsMinimized then
+            self:MaximizeGUI()
+        else
+            self:MinimizeGUI()
+        end
+    end
+end
+
+function AuthorCommandGUI:SetupHotkey()
+    self.UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.F8 then
+            self:ToggleGUI()
+        end
+    end)
+end
+
+function AuthorCommandGUI:Start()
+    if not self.LocalPlayer.Character then
+        self.LocalPlayer.CharacterAdded:Wait()
+    end
+    
+    wait(2)
+    
+    self.MainGUI = self:CreateGUI()
+    
+    self:SetupHotkey()
+    
+    self:ShowNotification("作者指令GUI", "GUI已加载，按F8键或点击图标打开/关闭", 5)
+    
+    self:MinimizeGUI()
+    
+    print("🎮 作者指令GUI已加载")
+    print("📱 移动设备支持已启用")
+    print("📝 使用方法：")
+    print("   • 按 F8 键打开/关闭GUI")
+    print("   • 点击快捷图标最小化/最大化")
+    print("   • 可以拖拽标题栏和图标移动窗口")
+end
+
+wait(3)
+AuthorCommandGUI:Start()
