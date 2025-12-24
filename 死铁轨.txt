@@ -36,7 +36,7 @@ local function loadConfig()
 	end
 	return {
 		autoFitScreen = false,
-		compactMode = false, -- 新增紧凑模式配置
+		multiColumnLayout = false, -- 新增：双列布局状态
 		windowSize = {650, 400},
 		windowPosition = {0.5, 0.5}
 	}
@@ -129,42 +129,6 @@ local function autoFitUIScreen(mainFrame)
 	mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 end
 
--- 根据紧凑模式重新布局所有标签页
-local function rebuildAllTabLayouts()
-	for _, tabInfo in ipairs(allTabs) do
-		local tabFrame = tabInfo.frame
-		
-		-- 移除现有布局
-		local existingLayout = tabFrame:FindFirstChild("TabL") or tabFrame:FindFirstChild("GridLayout")
-		if existingLayout then
-			existingLayout:Destroy()
-		end
-		
-		if compactModeEnabled then
-			-- 使用网格布局（两列）
-			local gridLayout = Instance.new("UIGridLayout")
-			gridLayout.Name = "GridLayout"
-			gridLayout.Parent = tabFrame
-			gridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
-			gridLayout.CellSize = UDim2.new(0.487, 0, 0, 120) -- 两列，每列约48.7%宽度
-			gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-			gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-		else
-			-- 使用垂直列表布局
-			local listLayout = Instance.new("UIListLayout")
-			listLayout.Name = "TabL"
-			listLayout.Parent = tabFrame
-			listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-			listLayout.Padding = UDim.new(0, 8)
-			
-			-- 重新计算CanvasSize
-			listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				tabFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 16)
-			end)
-		end
-	end
-end
-
 function drag(frame, hold)
 	if not hold then
 		hold = frame
@@ -211,6 +175,42 @@ local function highlightText(originalText, searchTerm, color)
 	local highlighted = originalText:gsub("(" .. pattern .. ")", 
 		'<font color="#4A90E2"><b>%1</b></font>')
 	return highlighted
+end
+
+-- 新增：更新双列布局
+local function updateMultiColumnLayout(tabFrame, enabled)
+	if not tabFrame then return end
+	
+	local sections = {}
+	for _, child in ipairs(tabFrame:GetChildren()) do
+		if child.Name == "Section" then
+			table.insert(sections, child)
+		end
+	end
+	
+	if #sections < 2 then
+		enabled = false -- 如果少于2个section，强制单栏
+	end
+	
+	if enabled then
+		-- 双栏布局
+		for i, section in ipairs(sections) do
+			section.Size = UDim2.new(0.48, 0, 0, section.AbsoluteSize.Y) -- 宽度改为48%
+			if i % 2 == 1 then
+				-- 左边栏
+				section.Position = UDim2.new(0, 0, 0, section.Position.Y.Offset)
+			else
+				-- 右边栏
+				section.Position = UDim2.new(0.52, 0, 0, sections[i-1].Position.Y.Offset) -- 与左边对齐
+			end
+		end
+	else
+		-- 单栏布局
+		for _, section in ipairs(sections) do
+			section.Size = UDim2.new(0.975, 0, 0, section.AbsoluteSize.Y)
+			section.Position = UDim2.new(0, 0, 0, section.Position.Y.Offset)
+		end
+	end
 end
 
 function library.new(library, name, theme)
@@ -272,25 +272,25 @@ function library.new(library, name, theme)
 	DropShadow.ScaleType = Enum.ScaleType.Slice
 	DropShadow.SliceCenter = Rect.new(49, 49, 450, 450)
 	
-	-- 新增：紧凑模式按钮（网格布局）
-	local CompactBtn = Instance.new("ImageButton")
-	CompactBtn.Name = "CompactBtn"
-	CompactBtn.Parent = Main
-	CompactBtn.BackgroundColor3 = Colors.Secondary
-	CompactBtn.BackgroundTransparency = Colors.Transparent
-	CompactBtn.Position = UDim2.new(1, -125, 0, 10) -- 在AutoFitBtn左边30px
-	CompactBtn.Size = UDim2.new(0, 25, 0, 25)
-	CompactBtn.Image = "rbxassetid://3926305904"
-	CompactBtn.ImageRectOffset = Vector2.new(644, 324) -- 网格图标
-	CompactBtn.ImageRectSize = Vector2.new(36, 36)
-	CompactBtn.ImageColor3 = Colors.Text
-	CompactBtn.ZIndex = 10
+	-- 新增：双列布局按钮（在AutoFitBtn左边）
+	local MultiColumnBtn = Instance.new("ImageButton")
+	MultiColumnBtn.Name = "MultiColumnBtn"
+	MultiColumnBtn.Parent = Main
+	MultiColumnBtn.BackgroundColor3 = Colors.Secondary
+	MultiColumnBtn.BackgroundTransparency = Colors.Transparent
+	MultiColumnBtn.Position = UDim2.new(1, -125, 0, 10) -- 在AutoFitBtn左边（30px间隔）
+	MultiColumnBtn.Size = UDim2.new(0, 25, 0, 25)
+	MultiColumnBtn.Image = "rbxassetid://3926305904"
+	MultiColumnBtn.ImageRectOffset = Vector2.new(644, 124) -- 网格图标
+	MultiColumnBtn.ImageRectSize = Vector2.new(36, 36)
+	MultiColumnBtn.ImageColor3 = Colors.Text
+	MultiColumnBtn.ZIndex = 10
 	
-	local CompactBtnC = Instance.new("UICorner")
-	CompactBtnC.CornerRadius = UDim.new(0, 6)
-	CompactBtnC.Parent = CompactBtn
+	local MultiColumnBtnC = Instance.new("UICorner")
+	MultiColumnBtnC.CornerRadius = UDim.new(0, 6)
+	MultiColumnBtnC.Parent = MultiColumnBtn
 	
-	CreateGlassEffect(CompactBtn)
+	CreateGlassEffect(MultiColumnBtn)
 	
 	local AutoFitBtn = Instance.new("ImageButton")
 	AutoFitBtn.Name = "AutoFitBtn"
@@ -353,7 +353,7 @@ function library.new(library, name, theme)
 	
 	local currentConfig = loadConfig()
 	local autoFitEnabled = currentConfig.autoFitScreen
-	local compactModeEnabled = currentConfig.compactMode -- 新增紧凑模式状态
+	local multiColumnEnabled = currentConfig.multiColumnLayout -- 新增
 	
 	if autoFitEnabled then
 		autoFitUIScreen(Main)
@@ -361,39 +361,41 @@ function library.new(library, name, theme)
 	
 	local scaleEnabled = false
 	
-	-- 新增：紧凑模式按钮点击事件
-	CompactBtn.MouseButton1Click:Connect(function()
+	-- 设置双列布局按钮初始状态
+	if multiColumnEnabled then
+		MultiColumnBtn.ImageColor3 = Colors.Accent
+		MultiColumnBtn.BackgroundTransparency = 0
+	else
+		Tween(MultiColumnBtn, 0, "Sine", "Out", { ImageColor3 = Colors.Text })
+		Tween(MultiColumnBtn, 0, "Sine", "Out", { BackgroundTransparency = 0.3 })
+	end
+	
+	-- 新增：双列布局按钮点击事件
+	MultiColumnBtn.MouseButton1Click:Connect(function()
 		spawn(function()
-			Ripple(CompactBtn)
+			Ripple(MultiColumnBtn)
 		end)
 		
-		compactModeEnabled = not compactModeEnabled
+		multiColumnEnabled = not multiColumnEnabled
 		
-		-- 更新按钮视觉状态
-		if compactModeEnabled then
-			Tween(CompactBtn, 0.2, "Sine", "Out", { ImageColor3 = HighlightColors.Primary })
-			Tween(CompactBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0 })
+		-- 更新按钮视觉效果
+		if multiColumnEnabled then
+			Tween(MultiColumnBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Accent })
+			Tween(MultiColumnBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0 })
 		else
-			Tween(CompactBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Text })
-			Tween(CompactBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0.3 })
+			Tween(MultiColumnBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Text })
+			Tween(MultiColumnBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0.3 })
 		end
 		
-		-- 重新布局所有标签页
-		rebuildAllTabLayouts()
-		
 		-- 保存配置
-		currentConfig.compactMode = compactModeEnabled
+		currentConfig.multiColumnLayout = multiColumnEnabled
 		saveConfig(currentConfig)
+		
+		-- 更新当前标签页的UI布局
+		if library.currentTab then
+			updateMultiColumnLayout(library.currentTab.frame, multiColumnEnabled)
+		end
 	end)
-	
-	-- 初始化按钮状态
-	if compactModeEnabled then
-		CompactBtn.ImageColor3 = HighlightColors.Primary
-		CompactBtn.BackgroundTransparency = 0
-	else
-		Tween(CompactBtn, 0, "Sine", "Out", { ImageColor3 = Colors.Text })
-		Tween(CompactBtn, 0, "Sine", "Out", { BackgroundTransparency = 0.3 })
-	end
 	
 	AutoFitBtn.MouseButton1Click:Connect(function()
 		spawn(function()
@@ -436,14 +438,6 @@ function library.new(library, name, theme)
 			Tween(ScaleBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0.3 })
 		end
 	end)
-	
-	if autoFitEnabled then
-		AutoFitBtn.ImageColor3 = Colors.Accent
-		AutoFitBtn.BackgroundTransparency = 0
-	else
-		Tween(AutoFitBtn, 0, "Sine", "Out", { ImageColor3 = Colors.Text })
-		Tween(AutoFitBtn, 0, "Sine", "Out", { BackgroundTransparency = 0.3 })
-	end
 	
 	local TitleBar = Instance.new("Frame")
 	TitleBar.Name = "TitleBar"
@@ -784,7 +778,10 @@ function library.new(library, name, theme)
 		old.frame.Visible = false
 		new.frame.Visible = true
 		
-		task.wait(0.15)
+		-- 切换标签页时应用双列布局
+		task.wait(0.1)
+		updateMultiColumnLayout(new.frame, multiColumnEnabled)
+		
 		switchingTabs = false
 	end
 	
@@ -839,26 +836,11 @@ function library.new(library, name, theme)
 		tabFrame.ScrollBarThickness = 2
 		tabFrame.Visible = false
 		
-		-- 根据紧凑模式创建初始布局
-		if compactModeEnabled then
-			local gridLayout = Instance.new("UIGridLayout")
-			gridLayout.Name = "GridLayout"
-			gridLayout.Parent = tabFrame
-			gridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
-			gridLayout.CellSize = UDim2.new(0.487, 0, 0, 120)
-			gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-			gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-		else
-			local tabL = Instance.new("UIListLayout")
-			tabL.Name = "TabL"
-			tabL.Parent = tabFrame
-			tabL.SortOrder = Enum.SortOrder.LayoutOrder
-			tabL.Padding = UDim.new(0, 8)
-			
-			tabL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				tabFrame.CanvasSize = UDim2.new(0, 0, 0, tabL.AbsoluteContentSize.Y + 16)
-			end)
-		end
+		local tabL = Instance.new("UIListLayout")
+		tabL.Name = "TabL"
+		tabL.Parent = tabFrame
+		tabL.SortOrder = Enum.SortOrder.LayoutOrder
+		tabL.Padding = UDim.new(0, 8)
 		
 		local tabInfo = {
 			name = name,
@@ -886,6 +868,10 @@ function library.new(library, name, theme)
 			})
 		end
 		
+		tabL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			tabFrame.CanvasSize = UDim2.new(0, 0, 0, tabL.AbsoluteContentSize.Y + 16)
+		end)
+		
 		local tab = {}
 		tab._info = tabInfo
 		
@@ -897,13 +883,7 @@ function library.new(library, name, theme)
 			Section.BackgroundTransparency = Colors.Transparent
 			Section.BorderSizePixel = 0
 			Section.ClipsDescendants = true
-			
-			-- 根据布局模式设置不同的高度
-			if compactModeEnabled then
-				Section.Size = UDim2.new(0, 0, 0, 120) -- 网格模式下由布局控制
-			else
-				Section.Size = UDim2.new(0.975, 0, 0, 42)
-			end
+			Section.Size = UDim2.new(0.975, 0, 0, 42)
 			
 			CreateGlassEffect(Section)
 			
@@ -971,28 +951,22 @@ function library.new(library, name, theme)
 			ObjsL.Padding = UDim.new(0, 8)
 			
 			local open = TabVal
-			if TabVal ~= false and not compactModeEnabled then -- 紧凑模式下不自动展开
+			if TabVal ~= false then
 				Section.Size = UDim2.new(0.975, 0, 0, open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42)
 				SectionOpened.ImageTransparency = (open and 0 or 1)
 				SectionOpen.ImageTransparency = (open and 1 or 0)
-			elseif compactModeEnabled then
-				-- 紧凑模式下固定高度
-				Section.Size = UDim2.new(0, 0, 0, 120)
-				objsFrame.Visible = false -- 隐藏内容
 			end
 			
 			SectionToggle.MouseButton1Click:Connect(function()
 				open = not open
-				if not compactModeEnabled then
-					Section.Size = UDim2.new(0.975, 0, 0, open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42)
-				end
+				Section.Size = UDim2.new(0.975, 0, 0, open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42)
 				SectionOpened.ImageTransparency = (open and 0 or 1)
 				SectionOpen.ImageTransparency = (open and 1 or 0)
 				Tween(Section, 0.2, "Sine", "Out", { BackgroundTransparency = open and 0.25 or 0 })
 			end)
 			
 			ObjsL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				if not open or compactModeEnabled then return end
+				if not open then return end
 				Section.Size = UDim2.new(0.975, 0, 0, 42 + ObjsL.AbsoluteContentSize.Y + 10)
 			end)
 			
@@ -1116,7 +1090,6 @@ function library.new(library, name, theme)
 				
 				sectionInfo.originalTexts[ToggleModule] = text
 				
-				-- 修复：改为圆角正方形开关
 				local ToggleDisable = Instance.new("Frame")
 				ToggleDisable.Name = "ToggleDisable"
 				ToggleDisable.Parent = ToggleBtn
