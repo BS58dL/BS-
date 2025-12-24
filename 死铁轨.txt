@@ -36,6 +36,7 @@ local function loadConfig()
 	end
 	return {
 		autoFitScreen = false,
+		compactMode = false, -- 新增紧凑模式配置
 		windowSize = {650, 400},
 		windowPosition = {0.5, 0.5}
 	}
@@ -48,11 +49,11 @@ local services = setmetatable({}, {
 })
 local mouse = services.Players.LocalPlayer:GetMouse()
 
--- 现代审美的高亮颜色配置（柔和渐变蓝）
+-- 现代审美的高亮颜色配置
 local HighlightColors = {
-	Primary = Color3.fromRGB(74, 144, 226),   -- 现代蓝 #4A90E2
-	Secondary = Color3.fromRGB(91, 155, 213), -- 柔和蓝 #5B9BD5
-	Accent = Color3.fromRGB(31, 97, 141),     -- 深蓝 #31618D
+	Primary = Color3.fromRGB(74, 144, 226),
+	Secondary = Color3.fromRGB(91, 155, 213),
+	Accent = Color3.fromRGB(31, 97, 141),
 }
 
 local Colors = {
@@ -128,6 +129,42 @@ local function autoFitUIScreen(mainFrame)
 	mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 end
 
+-- 根据紧凑模式重新布局所有标签页
+local function rebuildAllTabLayouts()
+	for _, tabInfo in ipairs(allTabs) do
+		local tabFrame = tabInfo.frame
+		
+		-- 移除现有布局
+		local existingLayout = tabFrame:FindFirstChild("TabL") or tabFrame:FindFirstChild("GridLayout")
+		if existingLayout then
+			existingLayout:Destroy()
+		end
+		
+		if compactModeEnabled then
+			-- 使用网格布局（两列）
+			local gridLayout = Instance.new("UIGridLayout")
+			gridLayout.Name = "GridLayout"
+			gridLayout.Parent = tabFrame
+			gridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
+			gridLayout.CellSize = UDim2.new(0.487, 0, 0, 120) -- 两列，每列约48.7%宽度
+			gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		else
+			-- 使用垂直列表布局
+			local listLayout = Instance.new("UIListLayout")
+			listLayout.Name = "TabL"
+			listLayout.Parent = tabFrame
+			listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			listLayout.Padding = UDim.new(0, 8)
+			
+			-- 重新计算CanvasSize
+			listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+				tabFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 16)
+			end)
+		end
+	end
+end
+
 function drag(frame, hold)
 	if not hold then
 		hold = frame
@@ -170,8 +207,7 @@ local function highlightText(originalText, searchTerm, color)
 		return originalText
 	end
 	
-	-- 使用富文本标签包裹匹配部分
-	local pattern = searchTerm:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1") -- 转义特殊字符
+	local pattern = searchTerm:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
 	local highlighted = originalText:gsub("(" .. pattern .. ")", 
 		'<font color="#4A90E2"><b>%1</b></font>')
 	return highlighted
@@ -236,6 +272,26 @@ function library.new(library, name, theme)
 	DropShadow.ScaleType = Enum.ScaleType.Slice
 	DropShadow.SliceCenter = Rect.new(49, 49, 450, 450)
 	
+	-- 新增：紧凑模式按钮（网格布局）
+	local CompactBtn = Instance.new("ImageButton")
+	CompactBtn.Name = "CompactBtn"
+	CompactBtn.Parent = Main
+	CompactBtn.BackgroundColor3 = Colors.Secondary
+	CompactBtn.BackgroundTransparency = Colors.Transparent
+	CompactBtn.Position = UDim2.new(1, -125, 0, 10) -- 在AutoFitBtn左边30px
+	CompactBtn.Size = UDim2.new(0, 25, 0, 25)
+	CompactBtn.Image = "rbxassetid://3926305904"
+	CompactBtn.ImageRectOffset = Vector2.new(644, 324) -- 网格图标
+	CompactBtn.ImageRectSize = Vector2.new(36, 36)
+	CompactBtn.ImageColor3 = Colors.Text
+	CompactBtn.ZIndex = 10
+	
+	local CompactBtnC = Instance.new("UICorner")
+	CompactBtnC.CornerRadius = UDim.new(0, 6)
+	CompactBtnC.Parent = CompactBtn
+	
+	CreateGlassEffect(CompactBtn)
+	
 	local AutoFitBtn = Instance.new("ImageButton")
 	AutoFitBtn.Name = "AutoFitBtn"
 	AutoFitBtn.Parent = Main
@@ -297,12 +353,47 @@ function library.new(library, name, theme)
 	
 	local currentConfig = loadConfig()
 	local autoFitEnabled = currentConfig.autoFitScreen
+	local compactModeEnabled = currentConfig.compactMode -- 新增紧凑模式状态
 	
 	if autoFitEnabled then
 		autoFitUIScreen(Main)
 	end
 	
 	local scaleEnabled = false
+	
+	-- 新增：紧凑模式按钮点击事件
+	CompactBtn.MouseButton1Click:Connect(function()
+		spawn(function()
+			Ripple(CompactBtn)
+		end)
+		
+		compactModeEnabled = not compactModeEnabled
+		
+		-- 更新按钮视觉状态
+		if compactModeEnabled then
+			Tween(CompactBtn, 0.2, "Sine", "Out", { ImageColor3 = HighlightColors.Primary })
+			Tween(CompactBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0 })
+		else
+			Tween(CompactBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Text })
+			Tween(CompactBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0.3 })
+		end
+		
+		-- 重新布局所有标签页
+		rebuildAllTabLayouts()
+		
+		-- 保存配置
+		currentConfig.compactMode = compactModeEnabled
+		saveConfig(currentConfig)
+	end)
+	
+	-- 初始化按钮状态
+	if compactModeEnabled then
+		CompactBtn.ImageColor3 = HighlightColors.Primary
+		CompactBtn.BackgroundTransparency = 0
+	else
+		Tween(CompactBtn, 0, "Sine", "Out", { ImageColor3 = Colors.Text })
+		Tween(CompactBtn, 0, "Sine", "Out", { BackgroundTransparency = 0.3 })
+	end
 	
 	AutoFitBtn.MouseButton1Click:Connect(function()
 		spawn(function()
@@ -533,14 +624,14 @@ function library.new(library, name, theme)
 			-- 恢复所有标签页按钮和内容
 			for _, tabInfo in ipairs(allTabs) do
 				tabInfo.button.Visible = true
-				tabInfo.button.TabText.Text = tabInfo.name -- 恢复原始文本
+				tabInfo.button.TabText.Text = tabInfo.name
 				tabInfo.button.TabText.RichText = false
 				
 				-- 恢复所有Section及其内容
 				for _, sectionInfo in ipairs(tabInfo.sections or {}) do
 					sectionInfo.section.Visible = true
 					sectionInfo.objsFrame.Visible = true
-					sectionInfo.section.SectionText.Text = sectionInfo.name -- 恢复原始文本
+					sectionInfo.section.SectionText.Text = sectionInfo.name
 					sectionInfo.section.SectionText.RichText = false
 					
 					-- 恢复Section原始高度
@@ -748,11 +839,26 @@ function library.new(library, name, theme)
 		tabFrame.ScrollBarThickness = 2
 		tabFrame.Visible = false
 		
-		local tabL = Instance.new("UIListLayout")
-		tabL.Name = "TabL"
-		tabL.Parent = tabFrame
-		tabL.SortOrder = Enum.SortOrder.LayoutOrder
-		tabL.Padding = UDim.new(0, 8)
+		-- 根据紧凑模式创建初始布局
+		if compactModeEnabled then
+			local gridLayout = Instance.new("UIGridLayout")
+			gridLayout.Name = "GridLayout"
+			gridLayout.Parent = tabFrame
+			gridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
+			gridLayout.CellSize = UDim2.new(0.487, 0, 0, 120)
+			gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		else
+			local tabL = Instance.new("UIListLayout")
+			tabL.Name = "TabL"
+			tabL.Parent = tabFrame
+			tabL.SortOrder = Enum.SortOrder.LayoutOrder
+			tabL.Padding = UDim.new(0, 8)
+			
+			tabL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+				tabFrame.CanvasSize = UDim2.new(0, 0, 0, tabL.AbsoluteContentSize.Y + 16)
+			end)
+		end
 		
 		local tabInfo = {
 			name = name,
@@ -780,10 +886,6 @@ function library.new(library, name, theme)
 			})
 		end
 		
-		tabL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-			tabFrame.CanvasSize = UDim2.new(0, 0, 0, tabL.AbsoluteContentSize.Y + 16)
-		end)
-		
 		local tab = {}
 		tab._info = tabInfo
 		
@@ -795,7 +897,13 @@ function library.new(library, name, theme)
 			Section.BackgroundTransparency = Colors.Transparent
 			Section.BorderSizePixel = 0
 			Section.ClipsDescendants = true
-			Section.Size = UDim2.new(0.975, 0, 0, 42)
+			
+			-- 根据布局模式设置不同的高度
+			if compactModeEnabled then
+				Section.Size = UDim2.new(0, 0, 0, 120) -- 网格模式下由布局控制
+			else
+				Section.Size = UDim2.new(0.975, 0, 0, 42)
+			end
 			
 			CreateGlassEffect(Section)
 			
@@ -863,22 +971,28 @@ function library.new(library, name, theme)
 			ObjsL.Padding = UDim.new(0, 8)
 			
 			local open = TabVal
-			if TabVal ~= false then
+			if TabVal ~= false and not compactModeEnabled then -- 紧凑模式下不自动展开
 				Section.Size = UDim2.new(0.975, 0, 0, open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42)
 				SectionOpened.ImageTransparency = (open and 0 or 1)
 				SectionOpen.ImageTransparency = (open and 1 or 0)
+			elseif compactModeEnabled then
+				-- 紧凑模式下固定高度
+				Section.Size = UDim2.new(0, 0, 0, 120)
+				objsFrame.Visible = false -- 隐藏内容
 			end
 			
 			SectionToggle.MouseButton1Click:Connect(function()
 				open = not open
-				Section.Size = UDim2.new(0.975, 0, 0, open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42)
+				if not compactModeEnabled then
+					Section.Size = UDim2.new(0.975, 0, 0, open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42)
+				end
 				SectionOpened.ImageTransparency = (open and 0 or 1)
 				SectionOpen.ImageTransparency = (open and 1 or 0)
 				Tween(Section, 0.2, "Sine", "Out", { BackgroundTransparency = open and 0.25 or 0 })
 			end)
 			
 			ObjsL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				if not open then return end
+				if not open or compactModeEnabled then return end
 				Section.Size = UDim2.new(0.975, 0, 0, 42 + ObjsL.AbsoluteContentSize.Y + 10)
 			end)
 			
@@ -887,7 +1001,7 @@ function library.new(library, name, theme)
 				section = Section,
 				objsFrame = Objs,
 				components = {},
-				originalTexts = {} -- 存储原始文本以便恢复
+				originalTexts = {}
 			}
 			table.insert(tabInfo.sections, sectionInfo)
 			
@@ -915,7 +1029,7 @@ function library.new(library, name, theme)
 				Btn.TextColor3 = Colors.Text
 				Btn.TextSize = 15
 				Btn.TextXAlignment = Enum.TextXAlignment.Left
-				Btn.RichText = false -- 初始不使用富文本
+				Btn.RichText = false
 				
 				CreateGlassEffect(Btn)
 				
@@ -923,7 +1037,6 @@ function library.new(library, name, theme)
 				BtnC.CornerRadius = UDim.new(0, 6)
 				BtnC.Parent = Btn
 				
-				-- 保存原始文本
 				sectionInfo.originalTexts[BtnModule] = text
 				
 				Btn.MouseButton1Click:Connect(function()
@@ -953,7 +1066,7 @@ function library.new(library, name, theme)
 				TextLabel.TextColor3 = Colors.Text
 				TextLabel.TextSize = 14
 				TextLabel.TextWrapped = true
-				TextLabel.RichText = false -- 初始不使用富文本
+				TextLabel.RichText = false
 				
 				CreateGlassEffect(TextLabel)
 				
@@ -961,7 +1074,6 @@ function library.new(library, name, theme)
 				LabelC.CornerRadius = UDim.new(0, 6)
 				LabelC.Parent = TextLabel
 				
-				-- 保存原始文本
 				sectionInfo.originalTexts[LabelModule] = text
 				
 				return TextLabel
@@ -994,7 +1106,7 @@ function library.new(library, name, theme)
 				ToggleBtn.TextColor3 = Colors.Text
 				ToggleBtn.TextSize = 15
 				ToggleBtn.TextXAlignment = Enum.TextXAlignment.Left
-				ToggleBtn.RichText = false -- 初始不使用富文本
+				ToggleBtn.RichText = false
 				
 				CreateGlassEffect(ToggleBtn)
 				
@@ -1002,7 +1114,6 @@ function library.new(library, name, theme)
 				ToggleBtnC.CornerRadius = UDim.new(0, 6)
 				ToggleBtnC.Parent = ToggleBtn
 				
-				-- 保存原始文本
 				sectionInfo.originalTexts[ToggleModule] = text
 				
 				-- 修复：改为圆角正方形开关
@@ -1110,7 +1221,7 @@ function library.new(library, name, theme)
 				KeybindBtn.TextColor3 = Colors.Text
 				KeybindBtn.TextSize = 15
 				KeybindBtn.TextXAlignment = Enum.TextXAlignment.Left
-				KeybindBtn.RichText = false -- 初始不使用富文本
+				KeybindBtn.RichText = false
 				
 				CreateGlassEffect(KeybindBtn)
 				
@@ -1118,7 +1229,6 @@ function library.new(library, name, theme)
 				KeybindBtnC.CornerRadius = UDim.new(0, 6)
 				KeybindBtnC.Parent = KeybindBtn
 				
-				-- 保存原始文本
 				sectionInfo.originalTexts[KeybindModule] = text
 				
 				local KeybindValue = Instance.new("TextButton")
@@ -1210,7 +1320,7 @@ function library.new(library, name, theme)
 				TextboxBack.TextColor3 = Colors.Text
 				TextboxBack.TextSize = 15
 				TextboxBack.TextXAlignment = Enum.TextXAlignment.Left
-				TextboxBack.RichText = false -- 初始不使用富文本
+				TextboxBack.RichText = false
 				
 				CreateGlassEffect(TextboxBack)
 				
@@ -1218,7 +1328,6 @@ function library.new(library, name, theme)
 				TextboxBackC.CornerRadius = UDim.new(0, 6)
 				TextboxBackC.Parent = TextboxBack
 				
-				-- 保存原始文本
 				sectionInfo.originalTexts[TextboxModule] = text
 				
 				local BoxBG = Instance.new("TextButton")
@@ -1310,7 +1419,7 @@ function library.new(library, name, theme)
 				SliderBack.TextColor3 = Colors.Text
 				SliderBack.TextSize = 15
 				SliderBack.TextXAlignment = Enum.TextXAlignment.Left
-				SliderBack.RichText = false -- 初始不使用富文本
+				SliderBack.RichText = false
 				
 				CreateGlassEffect(SliderBack)
 				
@@ -1318,7 +1427,6 @@ function library.new(library, name, theme)
 				SliderBackC.CornerRadius = UDim.new(0, 6)
 				SliderBackC.Parent = SliderBack
 				
-				-- 保存原始文本
 				sectionInfo.originalTexts[SliderModule] = text
 				
 				local SliderBar = Instance.new("Frame")
@@ -1503,7 +1611,7 @@ function library.new(library, name, theme)
 				DropdownTop.Font = Enum.Font.GothamSemibold
 				DropdownTop.Text = ""
 				DropdownTop.TextXAlignment = Enum.TextXAlignment.Left
-				DropdownTop.RichText = false -- 初始不使用富文本
+				DropdownTop.RichText = false
 				
 				CreateGlassEffect(DropdownTop)
 				
@@ -1559,7 +1667,7 @@ function library.new(library, name, theme)
 						Option.Text = option
 						Option.TextColor3 = Colors.Text
 						Option.TextSize = 14
-						Option.RichText = false -- 初始不使用富文本
+						Option.RichText = false
 						
 						CreateGlassEffect(Option)
 						
@@ -1567,7 +1675,6 @@ function library.new(library, name, theme)
 						OptionC.CornerRadius = UDim.new(0, 6)
 						OptionC.Parent = Option
 						
-						-- 保存原始文本
 						sectionInfo.originalTexts[Option] = option
 						
 						Option.MouseButton1Click:Connect(function()
