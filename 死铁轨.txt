@@ -504,96 +504,84 @@ function library.new(library, name, theme)
 	local allTabs = {}
 	local tabInfos = {}
 	
-	-- 修改搜索功能，同时支持标签页和小标签页(Section)的搜索
+	-- 修复搜索功能：清空搜索框时完全恢复所有内容
 	SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
 		local searchText = SearchBox.Text:lower()
 		
-		for i, tabInfo in ipairs(allTabs) do
-			local tabVisible = false
-			local hasMatchingSections = false
-			
-			if searchText == "" then
-				tabVisible = true
-				hasMatchingSections = true
-				-- 显示所有标签页和Section
+		-- 如果搜索框为空，完全恢复所有内容
+		if searchText == "" then
+			-- 恢复所有标签页按钮和内容
+			for _, tabInfo in ipairs(allTabs) do
 				tabInfo.button.Visible = true
+				
+				-- 恢复所有Section及其内容
 				for _, sectionInfo in ipairs(tabInfo.sections or {}) do
 					sectionInfo.section.Visible = true
+					sectionInfo.objsFrame.Visible = true
+					
 					-- 恢复Section原始高度
 					local ObjsL = sectionInfo.objsFrame:FindFirstChild("ObjsL")
 					if ObjsL then
-						sectionInfo.section.Size = UDim2.new(0.975, 0, 0, sectionInfo.originalHeight or 42)
-					end
-				end
-			else
-				-- 检查标签页名称是否匹配
-				if tabInfo.name:lower():find(searchText, 1, true) then
-					tabVisible = true
-					hasMatchingSections = true
-				end
-				
-				-- 检查Section和组件
-				for _, sectionInfo in ipairs(tabInfo.sections or {}) do
-					local sectionVisible = false
-					local hasMatchingComponents = false
-					
-					-- 检查Section名称
-					if sectionInfo.name:lower():find(searchText, 1, true) then
-						sectionVisible = true
-						hasMatchingSections = true
-					end
-					
-					-- 检查Section中的组件
-					for _, componentText in ipairs(sectionInfo.components or {}) do
-						if componentText:lower():find(searchText, 1, true) then
-							sectionVisible = true
-							hasMatchingSections = true
-							hasMatchingComponents = true
-							break
-						end
-					end
-					
-					-- 显示/隐藏Section
-					sectionInfo.section.Visible = sectionVisible
-					
-					-- 如果Section可见且有匹配的组件，显示所有组件
-					-- 如果Section可见但没有匹配的组件（而是Section名称匹配），只显示Section标题
-					if sectionVisible then
-						if not hasMatchingComponents and sectionInfo.name:lower():find(searchText, 1, true) then
-							-- 只显示Section标题，隐藏内部组件
-							sectionInfo.section.Size = UDim2.new(0.975, 0, 0, 42)
-							if sectionInfo.objsFrame then
-								sectionInfo.objsFrame.Visible = false
-							end
-						else
-							-- 显示完整Section
-							sectionInfo.section.Size = UDim2.new(0.975, 0, 0, sectionInfo.originalHeight or 42)
-							if sectionInfo.objsFrame then
-								sectionInfo.objsFrame.Visible = true
-							end
-						end
-					else
-						-- 隐藏Section
-						if sectionInfo.objsFrame then
-							sectionInfo.objsFrame.Visible = false
-						end
-					end
-				end
-				
-				-- 如果没有匹配的Section但标签页名称匹配，显示所有Section
-				if tabVisible and not hasMatchingSections then
-					hasMatchingSections = true
-					for _, sectionInfo in ipairs(tabInfo.sections or {}) do
-						sectionInfo.section.Visible = true
-						sectionInfo.section.Size = UDim2.new(0.975, 0, 0, sectionInfo.originalHeight or 42)
-						if sectionInfo.objsFrame then
-							sectionInfo.objsFrame.Visible = true
-						end
+						local originalHeight = 42 + ObjsL.AbsoluteContentSize.Y + 10
+						sectionInfo.section.Size = UDim2.new(0.975, 0, 0, originalHeight)
 					end
 				end
 			end
 			
-			-- 显示/隐藏整个标签页
+			-- 确保当前标签页可见，否则切换到第一个可见标签页
+			if library.currentTab and not library.currentTab.button.Visible then
+				for _, tabInfo in ipairs(allTabs) do
+					if tabInfo.button.Visible then
+						switchTab({
+							button = tabInfo.button,
+							frame = tabInfo.frame
+						})
+						break
+					end
+				end
+			end
+			
+			return
+		end
+		
+		-- 搜索逻辑（非空搜索文本）
+		for _, tabInfo in ipairs(allTabs) do
+			local tabVisible = false
+			local hasMatchingSections = false
+			
+			-- 检查标签页名称是否匹配
+			if tabInfo.name:lower():find(searchText, 1, true) then
+				tabVisible = true
+				hasMatchingSections = true
+			end
+			
+			-- 检查Section和组件
+			for _, sectionInfo in ipairs(tabInfo.sections or {}) do
+				local sectionVisible = false
+				
+				-- 检查Section名称
+				if sectionInfo.name:lower():find(searchText, 1, true) then
+					sectionVisible = true
+					hasMatchingSections = true
+					tabVisible = true
+				end
+				
+				-- 检查Section中的组件
+				for _, componentText in ipairs(sectionInfo.components or {}) do
+					if componentText:lower():find(searchText, 1, true) then
+						sectionVisible = true
+						hasMatchingSections = true
+						tabVisible = true
+						break
+					end
+				end
+				
+				-- 显示/隐藏Section
+				sectionInfo.section.Visible = sectionVisible
+				sectionInfo.objsFrame.Visible = sectionVisible
+			end
+			
+			-- 显示/隐藏整个标签页（如果标签页名称匹配或有匹配的Section，则显示）
 			tabInfo.button.Visible = tabVisible or hasMatchingSections
 			
 			-- 如果当前标签页被隐藏，切换到第一个可见的标签页
@@ -833,8 +821,7 @@ function library.new(library, name, theme)
 				name = name,
 				section = Section,
 				objsFrame = Objs,
-				components = {},
-				originalHeight = 42 + ObjsL.AbsoluteContentSize.Y + 10
+				components = {}
 			}
 			table.insert(tabInfo.sections, sectionInfo)
 			
@@ -843,7 +830,7 @@ function library.new(library, name, theme)
 			function section.Button(section, text, callback)
 				local callback = callback or function() end
 				table.insert(tabInfo.searchableComponents, text)
-				table.insert(sectionInfo.components, text)  -- 同时添加到section的组件列表
+				table.insert(sectionInfo.components, text)
 				local BtnModule = Instance.new("Frame")
 				BtnModule.Name = "BtnModule"
 				BtnModule.Parent = Objs
@@ -879,7 +866,7 @@ function library.new(library, name, theme)
 			
 			function section:Label(text)
 				table.insert(tabInfo.searchableComponents, text)
-				table.insert(sectionInfo.components, text)  -- 同时添加到section的组件列表
+				table.insert(sectionInfo.components, text)
 				local LabelModule = Instance.new("Frame")
 				LabelModule.Name = "LabelModule"
 				LabelModule.Parent = Objs
@@ -913,7 +900,7 @@ function library.new(library, name, theme)
 				assert(flag, "No flag provided")
 				library.flags[flag] = enabled
 				table.insert(tabInfo.searchableComponents, text)
-				table.insert(sectionInfo.components, text)  -- 同时添加到section的组件列表
+				table.insert(sectionInfo.components, text)
 				
 				local ToggleModule = Instance.new("Frame")
 				ToggleModule.Name = "ToggleModule"
@@ -947,22 +934,22 @@ function library.new(library, name, theme)
 				ToggleDisable.BackgroundColor3 = Colors.Primary
 				ToggleDisable.BackgroundTransparency = 0.5
 				ToggleDisable.BorderSizePixel = 0
-				ToggleDisable.Position = UDim2.new(1, -38, 0.5, -13)  -- 居中位置
-				ToggleDisable.Size = UDim2.new(0, 26, 0, 26)  -- 正方形 26x26
+				ToggleDisable.Position = UDim2.new(1, -38, 0.5, -13)
+				ToggleDisable.Size = UDim2.new(0, 26, 0, 26)
 				
 				local ToggleSwitch = Instance.new("Frame")
 				ToggleSwitch.Name = "ToggleSwitch"
 				ToggleSwitch.Parent = ToggleDisable
 				ToggleSwitch.BackgroundColor3 = Colors.White
-				ToggleSwitch.Size = UDim2.new(0, 22, 0, 22)  -- 内部开关 22x22
-				ToggleSwitch.Position = UDim2.new(0, 2, 0, 2)  -- 居中偏移
+				ToggleSwitch.Size = UDim2.new(0, 22, 0, 22)
+				ToggleSwitch.Position = UDim2.new(0, 2, 0, 2)
 				
 				local ToggleDisableC = Instance.new("UICorner")
-				ToggleDisableC.CornerRadius = UDim.new(0, 6)  -- 圆角半径6
+				ToggleDisableC.CornerRadius = UDim.new(0, 6)
 				ToggleDisableC.Parent = ToggleDisable
 				
 				local ToggleSwitchC = Instance.new("UICorner")
-				ToggleSwitchC.CornerRadius = UDim.new(0, 4)  -- 圆角半径4
+				ToggleSwitchC.CornerRadius = UDim.new(0, 4)
 				ToggleSwitchC.Parent = ToggleSwitch
 				
 				local funcs = {
@@ -973,9 +960,8 @@ function library.new(library, name, theme)
 						if library.flags[flag] == state then
 							return
 						end
-						-- 修复：改为水平滑动动画
 						Tween(ToggleSwitch, 0.15, "Sine", "Out", {
-							Position = UDim2.new(0, (state and 2 or 2), 0, 2),  -- 垂直居中
+							Position = UDim2.new(0, (state and 2 or 2), 0, 2),
 							BackgroundColor3 = state and Color3.fromRGB(52, 152, 219) or Colors.White
 						})
 						library.flags[flag] = state
@@ -1026,7 +1012,7 @@ function library.new(library, name, theme)
 				local bindKey = default
 				local keyTxt = (default and (shortNames[default.Name] or default.Name) or "None")
 				table.insert(tabInfo.searchableComponents, text)
-				table.insert(sectionInfo.components, text)  -- 同时添加到section的组件列表
+				table.insert(sectionInfo.components, text)
 				
 				local KeybindModule = Instance.new("Frame")
 				KeybindModule.Name = "KeybindModule"
@@ -1122,7 +1108,7 @@ function library.new(library, name, theme)
 				assert(default, "No default text provided")
 				library.flags[flag] = default
 				table.insert(tabInfo.searchableComponents, text)
-				table.insert(sectionInfo.components, text)  -- 同时添加到section的组件列表
+				table.insert(sectionInfo.components, text)
 				
 				local TextboxModule = Instance.new("Frame")
 				TextboxModule.Name = "TextboxModule"
@@ -1154,7 +1140,7 @@ function library.new(library, name, theme)
 				BoxBG.Parent = TextboxBack
 				BoxBG.BackgroundColor3 = Colors.Primary
 				BoxBG.BackgroundTransparency = 0.5
-				BoxBG.Position = UDim2.new(1, -100, 0.5, -14)  -- 绝对定位，避免布局冲突
+				BoxBG.Position = UDim2.new(1, -100, 0.5, -14)
 				BoxBG.Size = UDim2.new(0, 90, 0, 28)
 				BoxBG.AutoButtonColor = false
 				BoxBG.Text = ""
@@ -1175,8 +1161,6 @@ function library.new(library, name, theme)
 				TB.TextSize = 14
 				TB.ClearTextOnFocus = false
 				
-				-- 修复：移除导致布局问题的UIListLayout，改用绝对定位
-				-- TextboxBack的子元素应该手动定位，而不是由布局控制
 				TextboxBack:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 					BoxBG.Position = UDim2.new(1, -100, 0.5, -14)
 				end)
@@ -1195,7 +1179,6 @@ function library.new(library, name, theme)
 				
 				BoxBG.Size = UDim2.new(0, TB.TextBounds.X + 40, 0, 28)
 				
-				-- 返回控件对象
 				local funcs = {
 					GetValue = function() return TB.Text end,
 					SetValue = function(self, value) 
@@ -1220,7 +1203,7 @@ function library.new(library, name, theme)
 				assert(flag, "No flag provided")
 				assert(default, "No default value provided")
 				table.insert(tabInfo.searchableComponents, text)
-				table.insert(sectionInfo.components, text)  -- 同时添加到section的组件列表
+				table.insert(sectionInfo.components, text)
 				
 				local SliderModule = Instance.new("Frame")
 				SliderModule.Name = "SliderModule"
@@ -1411,7 +1394,7 @@ function library.new(library, name, theme)
 				assert(flag, "No flag provided")
 				library.flags[flag] = nil
 				table.insert(tabInfo.searchableComponents, text)
-				table.insert(sectionInfo.components, text)  -- 同时添加到section的组件列表
+				table.insert(sectionInfo.components, text)
 				
 				local DropdownModule = Instance.new("Frame")
 				DropdownModule.Name = "DropdownModule"
@@ -1472,7 +1455,7 @@ function library.new(library, name, theme)
 				local open = false
 				local funcs = {
 					AddOption = function(self, option)
-						table.insert(sectionInfo.components, option)  -- 添加选项到搜索列表
+						table.insert(sectionInfo.components, option)
 						local Option = Instance.new("TextButton")
 						Option.Name = "Option_" .. option
 						Option.Parent = DropdownModule
