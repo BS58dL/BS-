@@ -36,7 +36,7 @@ local function loadConfig()
 	end
 	return {
 		autoFitScreen = false,
-		multiColumnLayout = false, -- 新增：双列布局状态
+		dualSectionLayout = false, -- 新增双列布局配置
 		windowSize = {650, 400},
 		windowPosition = {0.5, 0.5}
 	}
@@ -51,9 +51,9 @@ local mouse = services.Players.LocalPlayer:GetMouse()
 
 -- 现代审美的高亮颜色配置
 local HighlightColors = {
-	Primary = Color3.fromRGB(74, 144, 226),
-	Secondary = Color3.fromRGB(91, 155, 213),
-	Accent = Color3.fromRGB(31, 97, 141),
+	Primary = Color3.fromRGB(74, 144, 226),   -- 现代蓝 #4A90E2
+	Secondary = Color3.fromRGB(91, 155, 213), -- 柔和蓝 #5B9BD5
+	Accent = Color3.fromRGB(31, 97, 141),     -- 深蓝 #31618D
 }
 
 local Colors = {
@@ -177,42 +177,6 @@ local function highlightText(originalText, searchTerm, color)
 	return highlighted
 end
 
--- 新增：更新双列布局
-local function updateMultiColumnLayout(tabFrame, enabled)
-	if not tabFrame then return end
-	
-	local sections = {}
-	for _, child in ipairs(tabFrame:GetChildren()) do
-		if child.Name == "Section" then
-			table.insert(sections, child)
-		end
-	end
-	
-	if #sections < 2 then
-		enabled = false -- 如果少于2个section，强制单栏
-	end
-	
-	if enabled then
-		-- 双栏布局
-		for i, section in ipairs(sections) do
-			section.Size = UDim2.new(0.48, 0, 0, section.AbsoluteSize.Y) -- 宽度改为48%
-			if i % 2 == 1 then
-				-- 左边栏
-				section.Position = UDim2.new(0, 0, 0, section.Position.Y.Offset)
-			else
-				-- 右边栏
-				section.Position = UDim2.new(0.52, 0, 0, sections[i-1].Position.Y.Offset) -- 与左边对齐
-			end
-		end
-	else
-		-- 单栏布局
-		for _, section in ipairs(sections) do
-			section.Size = UDim2.new(0.975, 0, 0, section.AbsoluteSize.Y)
-			section.Position = UDim2.new(0, 0, 0, section.Position.Y.Offset)
-		end
-	end
-end
-
 function library.new(library, name, theme)
 	for _, v in next, services.CoreGui:GetChildren() do
 		if v.Name == "REN" then
@@ -272,25 +236,50 @@ function library.new(library, name, theme)
 	DropShadow.ScaleType = Enum.ScaleType.Slice
 	DropShadow.SliceCenter = Rect.new(49, 49, 450, 450)
 	
-	-- 新增：双列布局按钮（在AutoFitBtn左边）
-	local MultiColumnBtn = Instance.new("ImageButton")
-	MultiColumnBtn.Name = "MultiColumnBtn"
-	MultiColumnBtn.Parent = Main
-	MultiColumnBtn.BackgroundColor3 = Colors.Secondary
-	MultiColumnBtn.BackgroundTransparency = Colors.Transparent
-	MultiColumnBtn.Position = UDim2.new(1, -125, 0, 10) -- 在AutoFitBtn左边（30px间隔）
-	MultiColumnBtn.Size = UDim2.new(0, 25, 0, 25)
-	MultiColumnBtn.Image = "rbxassetid://3926305904"
-	MultiColumnBtn.ImageRectOffset = Vector2.new(644, 124) -- 网格图标
-	MultiColumnBtn.ImageRectSize = Vector2.new(36, 36)
-	MultiColumnBtn.ImageColor3 = Colors.Text
-	MultiColumnBtn.ZIndex = 10
+	-- 加载配置
+	local currentConfig = loadConfig()
+	local autoFitEnabled = currentConfig.autoFitScreen
+	library.dualSectionEnabled = currentConfig.dualSectionLayout or false
 	
-	local MultiColumnBtnC = Instance.new("UICorner")
-	MultiColumnBtnC.CornerRadius = UDim.new(0, 6)
-	MultiColumnBtnC.Parent = MultiColumnBtn
+	-- 新增：双列布局按钮
+	local DualSectionBtn = Instance.new("ImageButton")
+	DualSectionBtn.Name = "DualSectionBtn"
+	DualSectionBtn.Parent = Main
+	DualSectionBtn.BackgroundColor3 = Colors.Secondary
+	DualSectionBtn.BackgroundTransparency = library.dualSectionEnabled and 0 or 0.3
+	DualSectionBtn.Position = UDim2.new(1, -125, 0, 10) -- 位于ScaleBtn(1, -65)左边
+	DualSectionBtn.Size = UDim2.new(0, 25, 0, 25)
+	DualSectionBtn.Image = "rbxassetid://3926305904"
+	DualSectionBtn.ImageRectOffset = Vector2.new(644, 204) -- 网格图标
+	DualSectionBtn.ImageRectSize = Vector2.new(36, 36)
+	DualSectionBtn.ImageColor3 = library.dualSectionEnabled and Colors.Accent or Colors.Text
+	DualSectionBtn.ZIndex = 10
 	
-	CreateGlassEffect(MultiColumnBtn)
+	local DualSectionBtnC = Instance.new("UICorner")
+	DualSectionBtnC.CornerRadius = UDim.new(0, 6)
+	DualSectionBtnC.Parent = DualSectionBtn
+	
+	CreateGlassEffect(DualSectionBtn)
+	
+	-- 原有按钮保持不变
+	local ScaleBtn = Instance.new("ImageButton")
+	ScaleBtn.Name = "ScaleBtn"
+	ScaleBtn.Parent = Main
+	ScaleBtn.BackgroundColor3 = Colors.Secondary
+	ScaleBtn.BackgroundTransparency = Colors.Transparent
+	ScaleBtn.Position = UDim2.new(1, -65, 0, 10)
+	ScaleBtn.Size = UDim2.new(0, 25, 0, 25)
+	ScaleBtn.Image = "rbxassetid://3926305904"
+	ScaleBtn.ImageRectOffset = Vector2.new(324, 364)
+	ScaleBtn.ImageRectSize = Vector2.new(36, 36)
+	ScaleBtn.ImageColor3 = Colors.Text
+	ScaleBtn.ZIndex = 10
+	
+	local ScaleBtnC = Instance.new("UICorner")
+	ScaleBtnC.CornerRadius = UDim.new(0, 6)
+	ScaleBtnC.Parent = ScaleBtn
+	
+	CreateGlassEffect(ScaleBtn)
 	
 	local AutoFitBtn = Instance.new("ImageButton")
 	AutoFitBtn.Name = "AutoFitBtn"
@@ -310,25 +299,6 @@ function library.new(library, name, theme)
 	AutoFitBtnC.Parent = AutoFitBtn
 	
 	CreateGlassEffect(AutoFitBtn)
-	
-	local ScaleBtn = Instance.new("ImageButton")
-	ScaleBtn.Name = "ScaleBtn"
-	ScaleBtn.Parent = Main
-	ScaleBtn.BackgroundColor3 = Colors.Secondary
-	ScaleBtn.BackgroundTransparency = Colors.Transparent
-	ScaleBtn.Position = UDim2.new(1, -65, 0, 10)
-	ScaleBtn.Size = UDim2.new(0, 25, 0, 25)
-	ScaleBtn.Image = "rbxassetid://3926305904"
-	ScaleBtn.ImageRectOffset = Vector2.new(324, 364)
-	ScaleBtn.ImageRectSize = Vector2.new(36, 36)
-	ScaleBtn.ImageColor3 = Colors.Text
-	ScaleBtn.ZIndex = 10
-	
-	local ScaleBtnC = Instance.new("UICorner")
-	ScaleBtnC.CornerRadius = UDim.new(0, 6)
-	ScaleBtnC.Parent = ScaleBtn
-	
-	CreateGlassEffect(ScaleBtn)
 	
 	local CloseBtn = Instance.new("TextButton")
 	CloseBtn.Name = "CloseBtn"
@@ -351,9 +321,37 @@ function library.new(library, name, theme)
 		dogent:Destroy()
 	end)
 	
-	local currentConfig = loadConfig()
-	local autoFitEnabled = currentConfig.autoFitScreen
-	local multiColumnEnabled = currentConfig.multiColumnLayout -- 新增
+	-- 双列布局按钮功能
+	DualSectionBtn.MouseButton1Click:Connect(function()
+		spawn(function()
+			Ripple(DualSectionBtn)
+		end)
+		
+		library.dualSectionEnabled = not library.dualSectionEnabled
+		
+		if library.dualSectionEnabled then
+			Tween(DualSectionBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Accent })
+			Tween(DualSectionBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0 })
+		else
+			Tween(DualSectionBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Text })
+			Tween(DualSectionBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0.3 })
+		end
+		
+		currentConfig.dualSectionLayout = library.dualSectionEnabled
+		saveConfig(currentConfig)
+		
+		-- 重新加载当前标签页以应用新布局
+		if library.currentTab then
+			-- 触发重新布局
+			for _, sectionInfo in ipairs(library.currentTab._info.sections or {}) do
+				sectionInfo.section.Parent = nil -- 临时移除
+			end
+			-- 重新添加回去会触发布局更新
+			for _, sectionInfo in ipairs(library.currentTab._info.sections or {}) do
+				sectionInfo.section.Parent = library.currentTab.frame
+			end
+		end
+	end)
 	
 	if autoFitEnabled then
 		autoFitUIScreen(Main)
@@ -361,39 +359,23 @@ function library.new(library, name, theme)
 	
 	local scaleEnabled = false
 	
-	-- 设置双列布局按钮初始状态
-	if multiColumnEnabled then
-		MultiColumnBtn.ImageColor3 = Colors.Accent
-		MultiColumnBtn.BackgroundTransparency = 0
-	else
-		Tween(MultiColumnBtn, 0, "Sine", "Out", { ImageColor3 = Colors.Text })
-		Tween(MultiColumnBtn, 0, "Sine", "Out", { BackgroundTransparency = 0.3 })
-	end
-	
-	-- 新增：双列布局按钮点击事件
-	MultiColumnBtn.MouseButton1Click:Connect(function()
+	ScaleBtn.MouseButton1Click:Connect(function()
 		spawn(function()
-			Ripple(MultiColumnBtn)
+			Ripple(ScaleBtn)
 		end)
 		
-		multiColumnEnabled = not multiColumnEnabled
+		scaleEnabled = not scaleEnabled
 		
-		-- 更新按钮视觉效果
-		if multiColumnEnabled then
-			Tween(MultiColumnBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Accent })
-			Tween(MultiColumnBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0 })
+		if scaleEnabled then
+			Main.Size = UDim2.new(0, 325, 0, 200)
+			Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+			Tween(ScaleBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Accent })
+			Tween(ScaleBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0 })
 		else
-			Tween(MultiColumnBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Text })
-			Tween(MultiColumnBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0.3 })
-		end
-		
-		-- 保存配置
-		currentConfig.multiColumnLayout = multiColumnEnabled
-		saveConfig(currentConfig)
-		
-		-- 更新当前标签页的UI布局
-		if library.currentTab then
-			updateMultiColumnLayout(library.currentTab.frame, multiColumnEnabled)
+			Main.Size = UDim2.new(0, 650, 0, 400)
+			Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+			Tween(ScaleBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Text })
+			Tween(ScaleBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0.3 })
 		end
 	end)
 	
@@ -419,25 +401,13 @@ function library.new(library, name, theme)
 		saveConfig(currentConfig)
 	end)
 	
-	ScaleBtn.MouseButton1Click:Connect(function()
-		spawn(function()
-			Ripple(ScaleBtn)
-		end)
-		
-		scaleEnabled = not scaleEnabled
-		
-		if scaleEnabled then
-			Main.Size = UDim2.new(0, 325, 0, 200)
-			Main.Position = UDim2.new(0.5, 0, 0.5, 0)
-			Tween(ScaleBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Accent })
-			Tween(ScaleBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0 })
-		else
-			Main.Size = UDim2.new(0, 650, 0, 400)
-			Main.Position = UDim2.new(0.5, 0, 0.5, 0)
-			Tween(ScaleBtn, 0.2, "Sine", "Out", { ImageColor3 = Colors.Text })
-			Tween(ScaleBtn, 0.2, "Sine", "Out", { BackgroundTransparency = 0.3 })
-		end
-	end)
+	if autoFitEnabled then
+		AutoFitBtn.ImageColor3 = Colors.Accent
+		AutoFitBtn.BackgroundTransparency = 0
+	else
+		Tween(AutoFitBtn, 0, "Sine", "Out", { ImageColor3 = Colors.Text })
+		Tween(AutoFitBtn, 0, "Sine", "Out", { BackgroundTransparency = 0.3 })
+	end
 	
 	local TitleBar = Instance.new("Frame")
 	TitleBar.Name = "TitleBar"
@@ -778,10 +748,7 @@ function library.new(library, name, theme)
 		old.frame.Visible = false
 		new.frame.Visible = true
 		
-		-- 切换标签页时应用双列布局
-		task.wait(0.1)
-		updateMultiColumnLayout(new.frame, multiColumnEnabled)
-		
+		task.wait(0.15)
 		switchingTabs = false
 	end
 	
@@ -842,6 +809,14 @@ function library.new(library, name, theme)
 		tabL.SortOrder = Enum.SortOrder.LayoutOrder
 		tabL.Padding = UDim.new(0, 8)
 		
+		-- 如果启用双列布局，修改ListLayout
+		if library.dualSectionEnabled then
+			tabL.FillDirection = Enum.FillDirection.Horizontal
+			tabL.HorizontalAlignment = Enum.HorizontalAlignment.Left
+			tabL.VerticalAlignment = Enum.VerticalAlignment.Top
+			tabL.Padding = UDim.new(0, 8)
+		end
+		
 		local tabInfo = {
 			name = name,
 			button = tabButton,
@@ -883,7 +858,13 @@ function library.new(library, name, theme)
 			Section.BackgroundTransparency = Colors.Transparent
 			Section.BorderSizePixel = 0
 			Section.ClipsDescendants = true
-			Section.Size = UDim2.new(0.975, 0, 0, 42)
+			
+			-- 根据双列布局设置宽度
+			if library.dualSectionEnabled then
+				Section.Size = UDim2.new(0.5, -4, 0, 42) -- 双列，每列占50%减去间距
+			else
+				Section.Size = UDim2.new(0.975, 0, 0, 42) -- 单列，几乎占满
+			end
 			
 			CreateGlassEffect(Section)
 			
@@ -952,14 +933,24 @@ function library.new(library, name, theme)
 			
 			local open = TabVal
 			if TabVal ~= false then
-				Section.Size = UDim2.new(0.975, 0, 0, open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42)
+				Section.Size = UDim2.new(
+					library.dualSectionEnabled and 0.5 or 0.975, 
+					library.dualSectionEnabled and -4 or 0, 
+					0, 
+					open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42
+				)
 				SectionOpened.ImageTransparency = (open and 0 or 1)
 				SectionOpen.ImageTransparency = (open and 1 or 0)
 			end
 			
 			SectionToggle.MouseButton1Click:Connect(function()
 				open = not open
-				Section.Size = UDim2.new(0.975, 0, 0, open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42)
+				Section.Size = UDim2.new(
+					library.dualSectionEnabled and 0.5 or 0.975, 
+					library.dualSectionEnabled and -4 or 0, 
+					0, 
+					open and 42 + ObjsL.AbsoluteContentSize.Y + 10 or 42
+				)
 				SectionOpened.ImageTransparency = (open and 0 or 1)
 				SectionOpen.ImageTransparency = (open and 1 or 0)
 				Tween(Section, 0.2, "Sine", "Out", { BackgroundTransparency = open and 0.25 or 0 })
@@ -967,7 +958,12 @@ function library.new(library, name, theme)
 			
 			ObjsL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 				if not open then return end
-				Section.Size = UDim2.new(0.975, 0, 0, 42 + ObjsL.AbsoluteContentSize.Y + 10)
+				Section.Size = UDim2.new(
+					library.dualSectionEnabled and 0.5 or 0.975, 
+					library.dualSectionEnabled and -4 or 0, 
+					0, 
+					42 + ObjsL.AbsoluteContentSize.Y + 10
+				)
 			end)
 			
 			local sectionInfo = {
