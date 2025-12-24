@@ -56,6 +56,16 @@ local Colors = {
 	Placeholder = Color3.fromRGB(150, 150, 150),
 	White = Color3.fromRGB(255, 255, 255),
 	Transparent = 0.25,
+	-- 彩虹色数组（现代审美）
+	Rainbow = {
+		Color3.fromRGB(255, 71, 87),    -- 活力红
+		Color3.fromRGB(255, 165, 2),    -- 明亮橙
+		Color3.fromRGB(255, 206, 84),   -- 柔和黄
+		Color3.fromRGB(0, 184, 148),    -- 清新绿
+		Color3.fromRGB(0, 168, 255),    -- 天空蓝
+		Color3.fromRGB(156, 136, 255),  -- 梦幻紫
+		Color3.fromRGB(253, 121, 168),  -- 甜美粉
+	}
 }
 
 local function CreateGlassEffect(instance, transparency)
@@ -504,31 +514,66 @@ function library.new(library, name, theme)
 	local allTabs = {}
 	local tabInfos = {}
 	
-	-- 修复搜索功能：清空搜索框时完全恢复所有内容
+	-- 追踪高亮组件
+	local highlightedComponents = {}
+	local rainbowIndex = 1
+	
+	-- 应用彩虹高亮
+	local function applyRainbowHighlight(component)
+		-- 清除之前的高亮
+		for _, comp in ipairs(highlightedComponents) do
+			if comp.textLabel then
+				comp.textLabel.TextColor3 = comp.originalColor or Colors.Text
+			end
+		end
+		highlightedComponents = {}
+		
+		rainbowIndex = 1
+		return function(textLabel, originalColor)
+			local colorIndex = rainbowIndex % #Colors.Rainbow + 1
+			rainbowIndex = rainbowIndex + 1
+			
+			Tween(textLabel, 0.3, "Sine", "Out", { TextColor3 = Colors.Rainbow[colorIndex] })
+			
+			table.insert(highlightedComponents, {
+				textLabel = textLabel,
+				originalColor = originalColor
+			})
+		end
+	end
+	
+	-- 恢复原始颜色
+	local function restoreOriginalColors()
+		for _, comp in ipairs(highlightedComponents) do
+			if comp.textLabel then
+				Tween(comp.textLabel, 0.3, "Sine", "Out", { TextColor3 = comp.originalColor })
+			end
+		end
+		highlightedComponents = {}
+		rainbowIndex = 1
+	end
+	
+	-- 修复搜索功能：带有彩虹高亮
 	SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
 		local searchText = SearchBox.Text:lower()
 		
+		-- 恢复原始颜色
+		restoreOriginalColors()
+		
 		-- 如果搜索框为空，完全恢复所有内容
 		if searchText == "" then
-			-- 恢复所有标签页按钮和内容
 			for _, tabInfo in ipairs(allTabs) do
 				tabInfo.button.Visible = true
-				
-				-- 恢复所有Section及其内容
 				for _, sectionInfo in ipairs(tabInfo.sections or {}) do
 					sectionInfo.section.Visible = true
 					sectionInfo.objsFrame.Visible = true
-					
-					-- 恢复Section原始高度
 					local ObjsL = sectionInfo.objsFrame:FindFirstChild("ObjsL")
 					if ObjsL then
-						local originalHeight = 42 + ObjsL.AbsoluteContentSize.Y + 10
-						sectionInfo.section.Size = UDim2.new(0.975, 0, 0, originalHeight)
+						sectionInfo.section.Size = UDim2.new(0.975, 0, 0, 42 + ObjsL.AbsoluteContentSize.Y + 10)
 					end
 				end
 			end
 			
-			-- 确保当前标签页可见，否则切换到第一个可见标签页
 			if library.currentTab and not library.currentTab.button.Visible then
 				for _, tabInfo in ipairs(allTabs) do
 					if tabInfo.button.Visible then
@@ -544,15 +589,21 @@ function library.new(library, name, theme)
 			return
 		end
 		
+		-- 创建高亮应用函数
+		local applyHighlight = applyRainbowHighlight()
+		
 		-- 搜索逻辑（非空搜索文本）
 		for _, tabInfo in ipairs(allTabs) do
 			local tabVisible = false
 			local hasMatchingSections = false
 			
-			-- 检查标签页名称是否匹配
+			-- 检查标签页名称
 			if tabInfo.name:lower():find(searchText, 1, true) then
 				tabVisible = true
 				hasMatchingSections = true
+				
+				-- 高亮标签页文本
+				applyHighlight(tabInfo.button:FindFirstChild("TabText"), Colors.Text)
 			end
 			
 			-- 检查Section和组件
@@ -564,6 +615,9 @@ function library.new(library, name, theme)
 					sectionVisible = true
 					hasMatchingSections = true
 					tabVisible = true
+					
+					-- 高亮Section文本
+					applyHighlight(sectionInfo.section:FindFirstChild("SectionText"), Colors.Text)
 				end
 				
 				-- 检查Section中的组件
@@ -572,19 +626,28 @@ function library.new(library, name, theme)
 						sectionVisible = true
 						hasMatchingSections = true
 						tabVisible = true
+						
+						-- 高亮匹配的组件文本
+						for _, obj in ipairs(sectionInfo.objsFrame:GetChildren()) do
+							local textLabel = obj:FindFirstChild("Btn") or 
+											obj:FindFirstChild("ToggleBtn") or 
+											obj:FindFirstChild("KeybindBtn") or 
+											obj:FindFirstChild("TextboxBack") or 
+											obj:FindFirstChild("SliderBack")
+							if textLabel and textLabel.Text:lower():find(componentText:lower(), 1, true) then
+								applyHighlight(textLabel, Colors.Text)
+							end
+						end
 						break
 					end
 				end
 				
-				-- 显示/隐藏Section
 				sectionInfo.section.Visible = sectionVisible
 				sectionInfo.objsFrame.Visible = sectionVisible
 			end
 			
-			-- 显示/隐藏整个标签页（如果标签页名称匹配或有匹配的Section，则显示）
 			tabInfo.button.Visible = tabVisible or hasMatchingSections
 			
-			-- 如果当前标签页被隐藏，切换到第一个可见的标签页
 			if not tabInfo.button.Visible and library.currentTab and library.currentTab.button == tabInfo.button then
 				for _, otherTabInfo in ipairs(allTabs) do
 					if otherTabInfo.button.Visible then
@@ -693,7 +756,7 @@ function library.new(library, name, theme)
 			button = tabButton,
 			frame = tabFrame,
 			searchableComponents = {},
-			sections = {}  -- 存储所有Section信息
+			sections = {}
 		}
 		table.insert(allTabs, tabInfo)
 		
@@ -816,7 +879,6 @@ function library.new(library, name, theme)
 				Section.Size = UDim2.new(0.975, 0, 0, 42 + ObjsL.AbsoluteContentSize.Y + 10)
 			end)
 			
-			-- 存储Section信息到tabInfo
 			local sectionInfo = {
 				name = name,
 				section = Section,
@@ -927,7 +989,6 @@ function library.new(library, name, theme)
 				ToggleBtnC.CornerRadius = UDim.new(0, 6)
 				ToggleBtnC.Parent = ToggleBtn
 				
-				-- 修复：改为圆角正方形开关
 				local ToggleDisable = Instance.new("Frame")
 				ToggleDisable.Name = "ToggleDisable"
 				ToggleDisable.Parent = ToggleBtn
@@ -1470,7 +1531,7 @@ function library.new(library, name, theme)
 						
 						CreateGlassEffect(Option)
 						
-						local OptionC = Instance.new("UICorner")
+						let OptionC = Instance.new("UICorner")
 						OptionC.CornerRadius = UDim.new(0, 6)
 						OptionC.Parent = Option
 						
